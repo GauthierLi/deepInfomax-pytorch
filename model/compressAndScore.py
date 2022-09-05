@@ -151,23 +151,20 @@ class Discriminator(nn.Module):
     def __init__(self, feature_dim):
         super(Discriminator, self).__init__()
         self.feature_dim = feature_dim
-        self.linear1 = nn.Linear(feature_dim, 64, bias=False)
-        self.bn1 = nn.BatchNorm1d(64)
-        self.linear2 = nn.Linear(64,32)
-        self.bn2 = nn.BatchNorm1d(32)
-        self.linear3 = nn.Linear(32, 1)
+        self.linear1 = nn.Linear(feature_dim, 8, bias=False)
+        self.bn1 = nn.BatchNorm1d(8)
+        self.linear2 = nn.Linear(8,1)
         self.activation = nn.LeakyReLU(inplace=True)
 
     def forward(self, representations):
         assert representations.shape[1] == self.feature_dim, "CHANNEL DIMENSION DOESN'T MATCH ... ..."
         out = self.activation(self.bn1(self.linear1(representations.squeeze(dim=2))))
-        out = self.activation(self.bn2(self.linear2(out)))
-        out = self.activation(self.linear3(out))
+        out = self.linear2(out)
         return nn.Sigmoid()(out).mean()
 
 
 def get_gaussian_sampler(train_batch, z_dim):
-    return Variable((torch.randn(train_batch, z_dim, dtype=torch.float32).unsqueeze(dim=2)) / 5.)
+    return Variable((torch.randn(train_batch, z_dim, dtype=torch.float32).unsqueeze(dim=2) + 2) / 5.)
 
 
 class InfoNCELossNet(nn.Module):
@@ -197,7 +194,7 @@ class InfoNCELossNet(nn.Module):
             g_score_map.append(torch.stack(g_tmp_row))
             l_score_map.append(torch.stack(l_tmp_row))
         l_score_map, g_score_map = torch.stack(l_score_map), torch.stack(g_score_map)
-        l_score_map, g_score_map = nn.Sigmoid()(l_score_map), nn.Sigmoid()(g_score_map)
+        l_score_map, g_score_map = nn.Softmax()(l_score_map), nn.Softmax()(g_score_map)
 
         mask = torch.eye(l_score_map.shape[0]).to(features.device)
         l_score_map, g_score_map = torch.log((l_score_map * mask).sum(dim=0)), torch.log((g_score_map * mask).sum(dim=0))
