@@ -1,4 +1,5 @@
 import os
+import pdb
 import time
 import torch
 import random 
@@ -23,22 +24,28 @@ class dynamic_pic():
 
         plt.figure(figsize=(row_max * 9, row * 6))
         num = 1
+        
         for item in joint:
-            if isinstance(item, str):
-                plt.subplot(row, row_max, num)
-                if self.data_base[item]["mode"] == "line":
-                    plt.plot(self.data_base[item]["x"], self.data_base[item]["y"], label=item)
-                else:
-                    plt.scatter(self.data_base[item]["x"], self.data_base[item]["y"], label=item, marker=".", linewidths=0.3)
-            elif isinstance(item, list):
-                plt.subplot(row, row_max, num)
-                for i, it in enumerate(item):
-                    if self.data_base[it]["mode"] == "line":
-                        plt.plot(self.data_base[it]["x"], self.data_base[it]["y"], label=it, color=self.cnames[i])
+            try:
+                if isinstance(item, str):
+                    plt.subplot(row, row_max, num)
+                    if self.data_base[item]["mode"] == "line":
+                        plt.plot(self.data_base[item]["x"], self.data_base[item]["y"], label=item)
                     else:
-                        plt.scatter(self.data_base[it]["x"], self.data_base[it]["y"], label=it, marker=".", color=self.cnames[i], linewidths=0.3)
-            plt.legend(loc="best")
-            num += 1
+                        plt.scatter(self.data_base[item]["x"], self.data_base[item]["y"], label=item, marker=".", linewidths=0.3)
+                elif isinstance(item, list):
+                    plt.subplot(row, row_max, num)
+                    for i, it in enumerate(item):
+                        if self.data_base[it]["mode"] == "line":
+                            plt.plot(self.data_base[it]["x"], self.data_base[it]["y"], label=it, color=self.cnames[i])
+                        else:
+                            plt.scatter(self.data_base[it]["x"], self.data_base[it]["y"], label=it, marker=".", color=self.cnames[i], linewidths=0.3)
+                plt.legend(loc="best")
+                num += 1
+            except KeyError:
+                print("\r Key {} not found".format(item), end="", flush=True)
+                num += 1
+
         plt.tight_layout()
         if pause != 0:
             plt.pause(pause)

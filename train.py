@@ -1,6 +1,5 @@
 import os
 import pdb
-from unicodedata import category
 import torch
 
 import numpy as np
@@ -91,8 +90,6 @@ def build_transform():
 
 # 3 train one epoch
 def train_one_epoch(epoch, nce:nn.Module, discriminator:nn.Module, dataloader:DataLoader, MI_optimizer, D_optimizer, monitor):
-    nce.train()
-    discriminator.train()
     nce.to(CFG.device)
     discriminator.to(CFG.device)
 
@@ -104,6 +101,7 @@ def train_one_epoch(epoch, nce:nn.Module, discriminator:nn.Module, dataloader:Da
         assert imgs.shape[-1] == nce.inp_sh, "Img shape doesnot match model needs ..."
         feature = nce.encoder(imgs.to(CFG.device))
         representation = nce.compressNet(feature)
+
         sample_data = get_gaussian_sampler(CFG.bs, CFG.representation_dim)
         
         if train_count < 400:
@@ -112,12 +110,20 @@ def train_one_epoch(epoch, nce:nn.Module, discriminator:nn.Module, dataloader:Da
             # ---------------------------------------------------------------
             MI_optimizer.zero_grad()
             D_optimizer.zero_grad()
+            nce.train()
+            discriminator.eval()
 
             if CFG.show_training_pic:
                 x, y = representation.squeeze().cpu().detach().numpy().T
+                x1, y1 = sample_data.squeeze().cpu().detach().numpy().T
                 monitor(x, y, category='representation', mode="scatter")
+                monitor(x1, y1, category='sample', mode="scatter")
 
-            fool_discriminator_loss = - torch.log(discriminator(representation)) + torch.log(discriminator(sample_data.to(CFG.device)))
+            representation_discrim = discriminator(representation)
+            true_label = Variable(torch.ones_like(representation_discrim), requires_grad=False).to(CFG.device)
+
+            fool_discriminator_loss = nn.BCELoss()(representation_discrim,true_label)
+            # - torch.log(discriminator(representation)) + torch.log(discriminator(sample_data.to(CFG.device)))
             
             if CFG.show_training_pic:
                 monitor(num, fool_discriminator_loss.item(), category='fool_discriminator', drop_x=True)
@@ -148,24 +154,33 @@ def train_one_epoch(epoch, nce:nn.Module, discriminator:nn.Module, dataloader:Da
         # ---------------------------------------------------------------
         # 1 first train discriminator
         # ---------------------------------------------------------------
-        if train_count >= 400 and train_count < 600:
+        if train_count >= 400 and train_count < 800:
             MI_optimizer.zero_grad()
             D_optimizer.zero_grad()
+
+            nce.eval()
+            discriminator.train()
             
-            
-            discriminate_loss = torch.log(discriminator(representation)) - torch.log(discriminator(sample_data.to(CFG.device)))
+            representation_discrim = discriminator(representation)
+            sample_discrim = discriminator(sample_data.to(CFG.device))
+
+            true_label = Variable(torch.ones_like(sample_discrim), requires_grad=False).to(CFG.device)
+            false_label = Variable(torch.zeros_like(representation_discrim), requires_grad=False).to(CFG.device)
+
+            discriminate_loss = nn.BCELoss()(representation_discrim,false_label) + nn.BCELoss()(sample_discrim,true_label)
+            # torch.log(discriminator(representation)) - torch.log(discriminator(sample_data.to(CFG.device)))
             discriminate_loss.backward()
             if CFG.show_training_pic:
-                monitor(num, discriminate_loss.item(), category='discriminate_loss')
+                monitor(num, discriminate_loss.item(), category='discriminate_loss', drop_x=True)
             D_optimizer.step()
 
 
         train_count += 1
-        if train_count >= 600:
+        if train_count >= 800:
             train_count = 0
 
         if num % 100:
-            monitor.draw(row_max=1, pause=0, save_path=os.path.join(CFG.save_img,f"loss_at_frequence{100}.png"))
+            monitor.draw(joint=[['sample','representation'],'MI_loss', 'fool_discriminator','discriminate_loss' ],row_max=2, pause=0, save_path=os.path.join(CFG.save_img,f"loss_at_frequence{100}.png"))
     
     plt.savefig(os.path.join(CFG.save_img, f"loss_at_epoch{epoch}.png"))
     print("loss: {:.5f} lr: {:.6f}".format(2 * mi_loss/N, MI_optimizer.param_groups[0]['lr']), flush=True)
@@ -197,17 +212,18 @@ if __name__ == "__main__":
     train_loader = build_dataloader(dataset=train_dataset)
     
     MI_optimizer = torch.optim.AdamW(nce.parameters(),lr=CFG.lr, weight_decay=CFG.wd)
-    D_optimizer = torch.optim.SGD(discriminator.parameters(), lr=1e-2)
+    D_optimizer = torch.optim.SGD(discriminator.parameters(), lr=CFG.lr * 10)
     MI_lr_schedule = torch.optim.lr_scheduler.ExponentialLR(MI_optimizer, gamma=0.98)
     D_lr_schedule = torch.optim.lr_scheduler.ExponentialLR(D_optimizer, gamma=0.98)
 
     best_loss = 999
     monitor = dynamic_pic(5000)
     for epoch in range(CFG.epoch):
-
         loss = train_one_epoch(epoch, nce=nce, discriminator=discriminator, dataloader=train_loader, MI_optimizer=MI_optimizer, D_optimizer=D_optimizer, monitor=monitor)
         MI_lr_schedule.step()
         D_lr_schedule.step()
         if loss < best_loss:
             best = best_loss
+            print("saving best epoch ...", flush=True)
             torch.save({"encoder": encoder.state_dict(), "compressNetwork": compressNetwork.state_dict(), "discriminator": discriminator.state_dict()}, os.path.join(CFG.save_path, "best.pth"))
+        torch.save({"encoder": encoder.state_dict(), "compressNetwork": compressNetwork.state_dict(), "discriminator": discriminator.state_dict()}, os.path.join(CFG.save_path, f"last_epoch_{epoch}.pth"))
