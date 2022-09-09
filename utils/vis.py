@@ -71,7 +71,7 @@ class dynamic_pic():
             else:
                 raise ValueError("mode only received as base line or scatter")
 
-        if isinstance(x, list):
+        if isinstance(y, list):
             self.data_base[category]["x"] += x
             self.data_base[category]["y"] += y
         else:
@@ -80,6 +80,15 @@ class dynamic_pic():
 
         if drop_x:
             self.data_base[category]["x"] = [i for i in range(len(self.data_base[category]["y"]))]
+
+    def clean(self, key="all"):
+        if key == "all":
+            self.data_base = dict()
+        else:
+            if key not in self.data_base:
+                return
+            self.data_base[key]["x"] = []
+            self.data_base[key]["y"] = []
 
     def __call__(self, x, y, category:str="base", mode="line", drop_mode="drop", drop_x=False):
         self._write(x, y, category, mode, drop_mode, drop_x)
