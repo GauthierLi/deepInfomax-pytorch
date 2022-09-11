@@ -39,6 +39,7 @@ class LocalMI(nn.Module):
         B,C,W,H = features.shape
         representation = torch.stack([representation for i in range(H*W)],dim=2).reshape(B,C,H,W)
 
+
         features_norm = torch.stack([torch.norm(features, p=2, dim=1) for i in range(C)], dim=1)
         representation_norm = torch.stack([torch.norm(representation, p=2, dim=1) for i in range(C)], dim=1)
 
