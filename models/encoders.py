@@ -3,7 +3,7 @@ import sys
 import pdb
 import torch
 from typing import Dict
-sys.path.append(r"F:\representationAE(version2)\CFG")
+sys.path.append(r"/media/gauthierli-org/GauLi1/code/生仝智能/representationAE/CFG")
 import cfg
 
 import numpy as np
@@ -20,10 +20,10 @@ class DoubleConv(nn.Sequential):
         super(DoubleConv, self).__init__(
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(mid_channels),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.LeakyReLU(inplace=True)
         )
 
 class Up(nn.Module):
@@ -127,13 +127,12 @@ class Decoder(nn.Module):
         _, _, _, self.size = shape_template
         self.channel = latent_dim
         up_times = (np.log2(img_size) - np.log2(self.size)).astype("uint8")
-        self.up = [Up(self.channel , self.channel) for i in range(up_times)]
+        self.up = nn.Sequential(*[Up(self.channel , self.channel) for i in range(up_times)])
         
         self.out = nn.Conv2d(self.channel, 3, kernel_size=1)
     
     def forward(self, x):
-        for layer in self.up:
-            x = layer(x)
+        x = self.up(x)
         
         x = self.out(x)
         return x

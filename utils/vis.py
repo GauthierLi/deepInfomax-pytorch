@@ -12,7 +12,7 @@ class dynamic_pic():
     def __init__(self , capacity=5000):
         self.capacity = capacity
         self.data_base = dict()
-        self.cnames = ["royalblue", "orange", "salmon", "slategray", "sage", "wheat"]
+        self.cnames = ["k", "r", "gold", "g", "dodgerblue", "slateblue"]
 
     def draw(self, joint:list=None, row_max=3, pause=1, save_path=None):
         """drop_x for the no x data"""
@@ -31,8 +31,11 @@ class dynamic_pic():
                     plt.subplot(row, row_max, num)
                     if self.data_base[item]["mode"] == "line":
                         plt.plot(self.data_base[item]["x"], self.data_base[item]["y"], label=item)
-                    else:
+                    elif self.data_base[item]["mode"] == "scatter":
                         plt.scatter(self.data_base[item]["x"], self.data_base[item]["y"], label=item, marker=".", linewidths=0.3)
+                    elif self.data_base[item]["mode"] == "figure":
+                        plt.imshow(self.data_base[item]["x"])
+                        plt.axis(False)
                 elif isinstance(item, list):
                     plt.subplot(row, row_max, num)
                     for i, it in enumerate(item):
@@ -57,29 +60,33 @@ class dynamic_pic():
         if category not in self.data_base:
             self.data_base[category] = {"x":[], "y":[], "mode":mode}
         
-        if len(self.data_base[category]["x"]) >= self.capacity:
-            if mode == "line":
-                if drop_mode == "jump":
-                    self.data_base[category]["x"] = [self.data_base[category]["x"][i] for i in range(self.capacity) if i % 2 == 0]
-                    self.data_base[category]["y"] = [self.data_base[category]["y"][i] for i in range(self.capacity) if i % 2 == 0]
-                elif drop_mode == "drop":
+        if mode == "figure":
+            self.data_base[category]["x"] = x
+            self.data_base[category]["y"] = 0
+        else:
+            if len(self.data_base[category]["x"]) >= self.capacity:
+                if mode == "line":
+                    if drop_mode == "jump":
+                        self.data_base[category]["x"] = [self.data_base[category]["x"][i] for i in range(self.capacity) if i % 2 == 0]
+                        self.data_base[category]["y"] = [self.data_base[category]["y"][i] for i in range(self.capacity) if i % 2 == 0]
+                    elif drop_mode == "drop":
+                        del self.data_base[category]["x"][0:int(self.capacity / 2)]
+                        del self.data_base[category]["y"][0:int(self.capacity / 2)]
+                elif mode == "scatter":
                     del self.data_base[category]["x"][0:int(self.capacity / 2)]
                     del self.data_base[category]["y"][0:int(self.capacity / 2)]
-            elif mode == "scatter":
-                del self.data_base[category]["x"][0:int(self.capacity / 2)]
-                del self.data_base[category]["y"][0:int(self.capacity / 2)]
+                else:
+                    raise ValueError("mode only received as base line or scatter")
+
+            if isinstance(y, list):
+                self.data_base[category]["x"] += x
+                self.data_base[category]["y"] += y
             else:
-                raise ValueError("mode only received as base line or scatter")
+                self.data_base[category]["x"].append(x)
+                self.data_base[category]["y"].append(y)
 
-        if isinstance(y, list):
-            self.data_base[category]["x"] += x
-            self.data_base[category]["y"] += y
-        else:
-            self.data_base[category]["x"].append(x)
-            self.data_base[category]["y"].append(y)
-
-        if drop_x:
-            self.data_base[category]["x"] = [i for i in range(len(self.data_base[category]["y"]))]
+            if drop_x:
+                self.data_base[category]["x"] = [i for i in range(len(self.data_base[category]["y"]))]
 
     def clean(self, key="all"):
         if key == "all":

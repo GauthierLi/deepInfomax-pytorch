@@ -2,7 +2,7 @@ import os
 import sys
 import pdb
 import torch
-sys.path.append(r"F:\representationAE(version2)\CFG")
+sys.path.append(r"/media/gauthierli-org/GauLi1/code/生仝智能/representationAE/CFG/cfg.py")
 
 import cfg as CFG
 import numpy as np
@@ -59,7 +59,7 @@ def cell_dataloader(dataset, nw=0):
     return DataLoader(dataset=dataset,batch_size=CFG.bs,num_workers=nw,shuffle=True,pin_memory=True,collate_fn=default_collate)
 
 def flowers_dataloader(transform=None):
-    transform = T.Compose([T.Resize(CFG.img_size),T.ToTensor(),T.Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])])
+    transform = T.Compose([T.Resize((CFG.img_size, CFG.img_size)),T.ToTensor()])
     ds = ImageFolder(CFG.data_path,transform=transform, target_transform=T.Lambda(lambda y:torch.eye(5)[y]))
     return ds.class_to_idx, DataLoader(ds, batch_size=CFG.bs,num_workers=CFG.nw,shuffle=True,pin_memory=True, collate_fn=default_collate)
 
