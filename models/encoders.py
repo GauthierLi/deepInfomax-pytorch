@@ -152,7 +152,7 @@ class feature_compress(nn.Module):
 
         x = self.activate(self.linear1(x))
         x = self.activate(self.linear2(x))
-        x = self.activate(self.linear3(x))
+        x = self.linear3(x)
         return x.squeeze(dim=2)
 
 class Discriminator(nn.Module):

@@ -33,6 +33,8 @@ def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor):
         models["decoder"]["net"].train()
         models["feature_compress"]["net"].eval()
         models["mi"]["net"].eval()
+        models["encoder"]["optim"].zero_grad()
+        models["decoder"]["optim"].zero_grad()
 
 
         feature = models["encoder"]["net"](img)
@@ -44,8 +46,7 @@ def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor):
         monitor((255 * img[0].permute(1,2,0).cpu().detach().numpy()).astype("uint8"), 0, category="ori", mode="figure")
         monitor((255 * reconstruct[0].permute(1,2,0).cpu().detach().numpy()).astype("uint8"), 0, category="rec", mode="figure")
 
-        models["encoder"]["optim"].zero_grad()
-        models["decoder"]["optim"].zero_grad()
+        
         recons_loss.backward()
         models["encoder"]["optim"].step()
         models["decoder"]["optim"].step()
@@ -55,6 +56,8 @@ def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor):
         models["decoder"]["net"].eval()
         models["feature_compress"]["net"].train()
         models["mi"]["net"].train()
+        models["feature_compress"]["optim"].zero_grad()
+        models["mi"]["optim"].zero_grad()
 
         feature = models["encoder"]["net"](img)
         representation = models["feature_compress"]["net"](feature)
@@ -67,8 +70,7 @@ def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor):
             cate = label[i].cpu().detach().numpy().argmax()
             monitor(x,y,category=f"rep{cate}", mode="scatter")
 
-        models["feature_compress"]["optim"].zero_grad()
-        models["mi"]["optim"].zero_grad()
+        
         mi_loss.backward()
         models["feature_compress"]["optim"].step()
         models["mi"]["optim"].step()
