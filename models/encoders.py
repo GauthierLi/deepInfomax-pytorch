@@ -3,7 +3,7 @@ import sys
 import pdb
 import torch
 from typing import Dict
-sys.path.append(r"/media/gauthierli-org/GauLi1/code/生仝智能/representationAE/CFG")
+sys.path.append(r"F:\representationAE(version2)\CFG")
 import cfg
 
 import numpy as np
@@ -29,17 +29,26 @@ class DoubleConv(nn.Sequential):
 class Up(nn.Module):
     def __init__(self, in_channels, out_channels, bilinear=True):
         super(Up, self).__init__()
+        self.bn = nn.BatchNorm2d(out_channels)
+        self.activate = nn.LeakyReLU(inplace=True)
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-            self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False)
+            self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=True)
         else:
             self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
-            self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False)
+            self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=True)
 
     def forward(self, x1: torch.Tensor) -> torch.Tensor:
         x = self.up(x1)
-        x = self.conv(x)
+        x = self.activate(self.bn(self.conv(x)))
         return x
+
+class Down(nn.Sequential):
+    def __init__(self, in_channels, out_channels):
+        super(Down, self).__init__(
+            nn.MaxPool2d(2, stride=2),
+            DoubleConv(in_channels, out_channels)
+        )
 
 class IntermediateLayerGetter(nn.ModuleDict):
     """
@@ -93,6 +102,13 @@ class IntermediateLayerGetter(nn.ModuleDict):
                 out[out_name] = x
         return out
 
+class kong(nn.Module):
+    def __init__(self,inplane):
+        super(kong, self).__init__()
+    
+    def forward(self,x):
+        return x
+
 class Encoder(nn.Module):
     r"""
         >>> "resnet": features channel 2048
@@ -109,7 +125,7 @@ class Encoder(nn.Module):
             self.features = IntermediateLayerGetter(self.model_zoo[mode], 
             dict([(name, name) for name in ['conv1', 'bn1', 'relu', 'maxpool', 'layer1', 'layer2', 'layer3', 'layer4']]))
             self.out_ch = 2048
-        self.cbr = nn.Sequential(nn.Conv2d(self.out_ch, latent_dim, kernel_size=1), nn.BatchNorm2d(latent_dim), nn.LeakyReLU(inplace=True))
+        self.cbr = nn.Sequential(nn.Conv2d(self.out_ch, latent_dim, kernel_size=1), nn.LeakyReLU(inplace=True))
 
     def forward(self, x):
         if self.mode == "mobilenet":
@@ -117,14 +133,31 @@ class Encoder(nn.Module):
         else:
             return self.cbr(self.features(x)["layer4"])
 
+class UnetEncoder(nn.Module):
+    def __init__(self,
+                 in_channels: int = 3,
+                 base_c: int = 64,
+                 latent_dim:int=2):
+        super(UnetEncoder, self).__init__()
+        self.in_conv = DoubleConv(in_channels, base_c)
+        self.down1 = Down(base_c, base_c * 2)
+        self.down2 = Down(base_c * 2, base_c * 4)
+        self.down3 = Down(base_c * 4, base_c * 8)
+        self.down4 = Down(base_c * 8, base_c * 16)
+        self.down5 = Down(base_c * 16, latent_dim)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x1 = self.in_conv(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down5(self.down4(x4))
+        return x5
+
 class Decoder(nn.Module):
-    def __init__(self,mode, latent_dim=cfg.latent_dim, shape_template=[], img_size=cfg.img_size):
+    def __init__(self, latent_dim=cfg.latent_dim, img_size=cfg.img_size):
         super(Decoder, self).__init__()
-        if mode == "mobilenet":
-            shape_template = [2, 576, img_size // 32, img_size // 32]
-        elif mode == "resnet":
-            shape_template = [2, 2048, img_size // 32, img_size // 32]
-        _, _, _, self.size = shape_template
+        self.size = img_size // 32
         self.channel = latent_dim
         up_times = (np.log2(img_size) - np.log2(self.size)).astype("uint8")
         self.up = nn.Sequential(*[Up(self.channel , self.channel) for i in range(up_times)])
@@ -135,7 +168,7 @@ class Decoder(nn.Module):
         x = self.up(x)
         
         x = self.out(x)
-        return x
+        return nn.Sigmoid()(x) 
 
 class feature_compress(nn.Module):
     def __init__(self, img_size=cfg.img_size):
@@ -177,9 +210,11 @@ if __name__ == "__main__":
     fea_comp = feature_compress()
 
     discrim = Discriminator()
+
+    print(e1)
     
-    feature = e1(tst)
-    print("feature shape:", feature.shape)
-    print("reconstract shape check:", d1(feature).shape)
-    print("representation shape check:", fea_comp(feature).shape)
-    print("discrim check:", discrim(fea_comp(feature)).shape, discrim(fea_comp(feature))[0])
+    # feature = e1(tst)
+    # print("feature shape:", feature.shape)
+    # print("reconstract shape check:", d1(feature).shape)
+    # print("representation shape check:", fea_comp(feature).shape)
+    # print("discrim check:", discrim(fea_comp(feature)).shape, discrim(fea_comp(feature))[0])

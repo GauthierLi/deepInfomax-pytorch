@@ -7,15 +7,16 @@ import torch
 import torch.nn as nn
 import CFG.cfg as cfg
 import torch.optim as optim
+import numpy as np
 
 from tqdm import tqdm
 from utils.vis import dynamic_pic
 from models.miNets import TotalMI
 from torch.utils.data import Dataset, DataLoader
-from dataloaders.dataloader import flowers_dataloader
-from models.encoders import Encoder, Decoder, feature_compress, Discriminator
+from dataloaders.dataloader import cell_dataloader, flowers_dataloader
+from models.encoders import Encoder, Decoder, feature_compress, Discriminator, UnetEncoder
 
-def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor):
+def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor, mapdict=None):
     total_recons_loss, total_mi_loss = 0., 0.
 
     N = len(loader)
@@ -28,6 +29,7 @@ def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor):
         img = img.to(cfg.device)
         label = label.to(cfg.device)
         
+        # if False:#(epoch + 1) % 3 != 0:
         # train encoder decoder
         models["encoder"]["net"].train()
         models["decoder"]["net"].train()
@@ -39,7 +41,7 @@ def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor):
 
         feature = models["encoder"]["net"](img)
         reconstruct = models["decoder"]["net"](feature)
-        recons_loss = recons_lf(img, reconstruct)
+        recons_loss = recons_lf(img, reconstruct) 
 
         total_recons_loss += recons_loss.item() 
         monitor(num, recons_loss.item(), category="recons", mode="line", drop_x=True)
@@ -50,41 +52,50 @@ def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor):
         recons_loss.backward()
         models["encoder"]["optim"].step()
         models["decoder"]["optim"].step()
-
+        # else:
         # train mi
-        models["encoder"]["net"].eval()
-        models["decoder"]["net"].eval()
+        models["encoder"]["net"].train()
+        models["decoder"]["net"].train()
         models["feature_compress"]["net"].train()
         models["mi"]["net"].train()
+        models["encoder"]["optim"].zero_grad()
+        models["decoder"]["optim"].zero_grad()
         models["feature_compress"]["optim"].zero_grad()
         models["mi"]["optim"].zero_grad()
+        
 
         feature = models["encoder"]["net"](img)
         representation = models["feature_compress"]["net"](feature)
-        mi_loss = models["mi"]["net"](feature, representation)
+        
+        mi_loss = models["mi"]["net"](feature, representation, label) + torch.norm(representation, p=2, dim=1).mean()
         total_mi_loss += mi_loss.item()
         monitor(num, mi_loss.item(), category="mi loss", drop_x=True)
         for i, rep in enumerate(representation):
             l = rep.cpu().detach().numpy().tolist()
             x ,y = l[0], l[1]
             cate = label[i].cpu().detach().numpy().argmax()
-            monitor(x,y,category=f"rep{cate}", mode="scatter")
+            if mapdict is not None:
+                monitor(x,y,category=mapdict[cate], mode="scatter")
+            else:
+                monitor(x,y,category=f"rep{cate}", mode="scatter")
 
         
         mi_loss.backward()
+        models["encoder"]["optim"].step()
+        models["decoder"]["optim"].step()
         models["feature_compress"]["optim"].step()
         models["mi"]["optim"].step()
 
         # draw 
-        if num % 10 == 0:
-            monitor.draw(joint=["recons", "mi loss", "ori", "rec", ["rep0", "rep1","rep2","rep3","rep4"]],
+        if num % 1 == 0:
+            monitor.draw(joint=["recons", "mi loss", "ori", "rec", ["rep0","rep1"]],
                         row_max=2, pause=0, save_path=os.path.join(cfg.log_img, "view.png"))
     
     total = total_recons_loss / N + total_mi_loss / N
     print("epoch:{}, total loss:{:.4f}, lr:{:8f}".format(epoch, total, models["mi"]["optim"].param_groups[0]['lr']))
-    monitor.draw(joint=["recons", "mi loss", "ori", "rec", ["rep0", "rep1","rep2","rep3","rep4"]], 
+    monitor.draw(joint=["recons", "mi loss", "ori", "rec", ["rep0","rep1"]], 
                     row_max=2, pause=0, save_path=os.path.join(cfg.log_img, f"epoch{epoch}.png"))
-    monitor.clean(["rep0", "rep1","rep2","rep3","rep4"])
+    monitor.clean(["rep0","rep1"])
     return total
 
 if __name__ == "__main__":
@@ -94,10 +105,12 @@ if __name__ == "__main__":
         os.makedirs(cfg.log_img)
     
     monitor = dynamic_pic(2000)
-    map_dic, train_loader = flowers_dataloader()
+    mapdict, train_loader = flowers_dataloader()
+    print(mapdict)
+    # {'ST16Rm-LG-MD-ML-PG-SD-032-2-0037': 0, 'ST16Rm-LG-MD-ML-PG-SD-032-2-0038': 1, 'ST16Rm-LG-MD-ML-PG-SD-032-4-0091': 2, 'ST16Rm-LG-MD-ML-PG-SD-032-4-0093': 3, 'a_lg1000': 4}
 
-    encoder = Encoder("mobilenet").to(cfg.device)
-    decoder = Decoder("mobilenet").to(cfg.device)
+    encoder = UnetEncoder(latent_dim=cfg.latent_dim).to(cfg.device)
+    decoder = Decoder().to(cfg.device)
     fea_compress = feature_compress().to(cfg.device)
     mi_loss = TotalMI().to(cfg.device)
     discrim = Discriminator().to(cfg.device)
@@ -121,9 +134,12 @@ if __name__ == "__main__":
               "mi":{"net":mi_loss, "optim":optim_mi, "lr_scd": lrscd_mi},
               "discriminator":{"net":discrim, "optim":optim_discrim, "lr_scd": lrscd_discrim}}
     
-    # for key in models:
-    #     print(next(models[key]["net"].parameters()).device)
-    best_loss = 999
+    if cfg.resume:
+        ckpt = torch.load(cfg.resume_path)
+        for key in models:
+            models[key]["net"].load_state_dict(ckpt[key])
+
+    best_loss = 999999999999999
     for epoch in range(cfg.epoch):
         loss = train_one_epoch(epoch, models,train_loader, monitor)
         for key in models:
@@ -132,7 +148,7 @@ if __name__ == "__main__":
         ckpt = dict()
         for key in models:
             ckpt[key] = models[key]["net"].state_dict()
-        torch.save(ckpt, os.path.join(cfg.ckpt_path, f"epoch_{epoch}.png"))
+        torch.save(ckpt, os.path.join(cfg.ckpt_path, f"epoch_{epoch}.pth"))
         if loss < best_loss:
             best_loss = loss
-            torch.save(ckpt, os.path.join(cfg.ckpt_path, f"best_epoch.png"))
+            torch.save(ckpt, os.path.join(cfg.ckpt_path, f"best_epoch.pth"))

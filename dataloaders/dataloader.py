@@ -18,7 +18,7 @@ from torch.utils.data.dataloader import default_collate
 
 # 1 dataloader
 class cell_seg_dataset(Dataset):
-    def __init__(self, root:str, transform=None, file_list=None, train=True) -> None:
+    def __init__(self, root:str=CFG.data_path, transform=None, file_list=None, train=True) -> None:
         super().__init__()
         self.root = root
         self.transform = transform
@@ -55,13 +55,15 @@ class cell_seg_dataset(Dataset):
     def collate_fn(batch):
         pass
 
-def cell_dataloader(dataset, nw=0):
-    return DataLoader(dataset=dataset,batch_size=CFG.bs,num_workers=nw,shuffle=True,pin_memory=True,collate_fn=default_collate)
+def cell_dataloader(nw=0):
+    transform = T.Compose([T.RandomCrop((CFG.img_size, CFG.img_size)),T.ToTensor()])
+    dataset = cell_seg_dataset(transform=transform)
+    return DataLoader(dataset=dataset,batch_size=CFG.bs,num_workers=nw,shuffle=True,pin_memory=True,collate_fn=default_collate, drop_last=True)
 
-def flowers_dataloader(transform=None):
-    transform = T.Compose([T.Resize((CFG.img_size, CFG.img_size)),T.ToTensor()])
-    ds = ImageFolder(CFG.data_path,transform=transform, target_transform=T.Lambda(lambda y:torch.eye(5)[y]))
-    return ds.class_to_idx, DataLoader(ds, batch_size=CFG.bs,num_workers=CFG.nw,shuffle=True,pin_memory=True, collate_fn=default_collate)
+def flowers_dataloader(root=CFG.data_path,transform=None):
+    transform = T.Compose([T.RandomCrop((CFG.img_size, CFG.img_size)),T.ToTensor()])
+    ds = ImageFolder(root,transform=transform, target_transform=T.Lambda(lambda y:torch.eye(CFG.num_class, dtype=torch.float32)[y]))
+    return ds.class_to_idx, DataLoader(ds, batch_size=CFG.bs,num_workers=CFG.nw,shuffle=True,pin_memory=True, collate_fn=default_collate, drop_last=True)
 
 
 if __name__ == "__main__":
