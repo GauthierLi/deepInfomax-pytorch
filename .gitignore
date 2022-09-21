@@ -2,3 +2,5 @@ log*/
 checkpoint*/
 /**/*.pth
 /**/__pycache__/
+*checkpoint*/
+*_img/
