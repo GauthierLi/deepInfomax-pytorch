@@ -88,14 +88,14 @@ def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor, mapdict=
 
         # draw 
         if num % 1 == 0:
-            monitor.draw(joint=["recons", "mi loss", "ori", "rec", ["rep0","rep1"]],
+            monitor.draw(joint=["recons", "mi loss", "ori", "rec", [f"rep{i}" for i in range(cfg.num_class)]],
                         row_max=2, pause=0, save_path=os.path.join(cfg.log_img, "view.png"))
     
     total = total_recons_loss / N + total_mi_loss / N
     print("epoch:{}, total loss:{:.4f}, lr:{:8f}".format(epoch, total, models["mi"]["optim"].param_groups[0]['lr']))
-    monitor.draw(joint=["recons", "mi loss", "ori", "rec", ["rep0","rep1"]], 
+    monitor.draw(joint=["recons", "mi loss", "ori", "rec", [f"rep{i}" for i in range(cfg.num_class)]], 
                     row_max=2, pause=0, save_path=os.path.join(cfg.log_img, f"epoch{epoch}.png"))
-    monitor.clean(["rep0","rep1"])
+    monitor.clean([f"rep{i}" for i in range(cfg.num_class)])
     return total
 
 if __name__ == "__main__":

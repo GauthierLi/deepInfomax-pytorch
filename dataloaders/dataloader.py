@@ -60,9 +60,9 @@ def cell_dataloader(nw=0):
     dataset = cell_seg_dataset(transform=transform)
     return DataLoader(dataset=dataset,batch_size=CFG.bs,num_workers=nw,shuffle=True,pin_memory=True,collate_fn=default_collate, drop_last=True)
 
-def flowers_dataloader(root=CFG.data_path,transform=None):
+def flowers_dataloader(root=CFG.data_path,transform=None,num_class=CFG.num_class):
     transform = T.Compose([T.RandomCrop((CFG.img_size, CFG.img_size)),T.ToTensor()])
-    ds = ImageFolder(root,transform=transform, target_transform=T.Lambda(lambda y:torch.eye(CFG.num_class, dtype=torch.float32)[y]))
+    ds = ImageFolder(root,transform=transform, target_transform=T.Lambda(lambda y:torch.eye(num_class, dtype=torch.float32)[y]))
     return ds.class_to_idx, DataLoader(ds, batch_size=CFG.bs,num_workers=CFG.nw,shuffle=True,pin_memory=True, collate_fn=default_collate, drop_last=True)
 
 
