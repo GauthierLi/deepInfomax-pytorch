@@ -3,13 +3,14 @@ import torch
 
 # general parameters
 nw = 0
-bs = 32
-lr = 1e-3
+bs = 8
+lr = 5e-3
 wd = 1e-3
 epoch = 1500
-img_size = 64
+img_size = 128
 latent_dim = 128
 num_class = 2
+net_type = "U2Net"
 device = "cuda" if torch.cuda.is_available else "cpu"
 
 # data path

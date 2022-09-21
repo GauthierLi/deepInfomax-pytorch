@@ -1,5 +1,6 @@
 import os
 import sys
+from tkinter import Variable
 sys.path.append(r"/media/gauthierli-org/GauLi1/code/生仝智能/representationAE/CFG")
 sys.path.append(r"/media/gauthierli-org/GauLi1/code/生仝智能/representationAE/models")
 import pdb
@@ -14,7 +15,7 @@ from utils.vis import dynamic_pic
 from models.miNets import TotalMI
 from torch.utils.data import Dataset, DataLoader
 from dataloaders.dataloader import cell_dataloader, flowers_dataloader
-from models.encoders import Encoder, Decoder, feature_compress, Discriminator, UnetEncoder
+from models.encoders import Encoder, Decoder, feature_compress, Discriminator, UnetEncoder, U2Encoder, U2Decoder
 
 def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor, mapdict=None):
     total_recons_loss, total_mi_loss = 0., 0.
@@ -38,15 +39,27 @@ def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor, mapdict=
         models["encoder"]["optim"].zero_grad()
         models["decoder"]["optim"].zero_grad()
 
-
-        feature = models["encoder"]["net"](img)
-        reconstruct = models["decoder"]["net"](feature)
-        recons_loss = recons_lf(img, reconstruct) 
+        if cfg.net_type == "U2Net":
+            features = models["encoder"]["net"](img)
+            feature = features[-1]
+            reconstruct = models["decoder"]["net"](features)
+            # pdb.set_trace()
+            recons_loss = 0
+            for rec in reconstruct:
+                recons_loss += torch.pow(1 + recons_lf(img * 25, rec * 25), 4)
+        else:
+            feature = models["encoder"]["net"](img)
+            reconstruct = models["decoder"]["net"](feature)
+            recons_loss = recons_lf(img * 25, reconstruct * 25) 
+            
 
         total_recons_loss += recons_loss.item() 
         monitor(num, recons_loss.item(), category="recons", mode="line", drop_x=True)
         monitor((255 * img[0].permute(1,2,0).cpu().detach().numpy()).astype("uint8"), 0, category="ori", mode="figure")
-        monitor((255 * reconstruct[0].permute(1,2,0).cpu().detach().numpy()).astype("uint8"), 0, category="rec", mode="figure")
+        if cfg.net_type == "U2Net":
+            monitor((255 * reconstruct[0][0].permute(1,2,0).cpu().detach().numpy()).astype("uint8"), 0, category="rec", mode="figure")
+        else:
+            monitor((255 * reconstruct[0].permute(1,2,0).cpu().detach().numpy()).astype("uint8"), 0, category="rec", mode="figure")
 
         
         recons_loss.backward()
@@ -63,8 +76,10 @@ def train_one_epoch(epoch:int, models:dict, loader:DataLoader, monitor, mapdict=
         models["feature_compress"]["optim"].zero_grad()
         models["mi"]["optim"].zero_grad()
         
-
-        feature = models["encoder"]["net"](img)
+        if cfg.net_type == "U2Net":
+            feature = models["encoder"]["net"](img)[-1]
+        else:
+            feature = models["encoder"]["net"](img)
         representation = models["feature_compress"]["net"](feature)
         
         mi_loss = models["mi"]["net"](feature, representation, label) + torch.norm(representation, p=2, dim=1).mean()
@@ -109,10 +124,15 @@ if __name__ == "__main__":
     print(mapdict)
     # {'ST16Rm-LG-MD-ML-PG-SD-032-2-0037': 0, 'ST16Rm-LG-MD-ML-PG-SD-032-2-0038': 1, 'ST16Rm-LG-MD-ML-PG-SD-032-4-0091': 2, 'ST16Rm-LG-MD-ML-PG-SD-032-4-0093': 3, 'a_lg1000': 4}
 
-    encoder = UnetEncoder(latent_dim=cfg.latent_dim).to(cfg.device)
-    decoder = Decoder().to(cfg.device)
+    if cfg.net_type == "U2Net":
+        encoder = U2Encoder(latent_dim=cfg.latent_dim).to(cfg.device)
+        decoder = U2Decoder().to(cfg.device)
+        mi_loss = TotalMI().to(cfg.device)
+    else:
+        encoder = UnetEncoder(latent_dim=cfg.latent_dim).to(cfg.device)
+        decoder = Decoder().to(cfg.device)
+        mi_loss = TotalMI().to(cfg.device)
     fea_compress = feature_compress().to(cfg.device)
-    mi_loss = TotalMI().to(cfg.device)
     discrim = Discriminator().to(cfg.device)
 
     optim_en = optim.AdamW(encoder.parameters(), lr=cfg.lr,weight_decay=cfg.wd)
