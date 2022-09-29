@@ -28,8 +28,8 @@ class SIN(nn.Module):
                                  nn.Linear(128, 256), nn.ReLU(), self.dropout, 
                                 #  nn.Linear(256, 512), nn.ReLU(), nn.Dropout1d(0.5), 
                                 #  nn.Linear(512, 256), nn.ReLU(),nn.Dropout1d(0.5),
-                                 nn.Linear(256,128), nn.ReLU(),self.dropout, 
-                                 nn.Linear(128, 64), nn.ReLU(),self.dropout,
+                                 nn.Linear(256,128), nn.ReLU(), self.dropout, 
+                                 nn.Linear(128, 64), nn.ReLU(), self.dropout,
                                  nn.Linear(64, 1))
 
     def forward(self, x):

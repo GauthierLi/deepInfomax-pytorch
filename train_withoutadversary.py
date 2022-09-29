@@ -141,11 +141,18 @@ if __name__ == "__main__":
     optim_mi = optim.AdamW(mi_loss.parameters(), lr=cfg.lr)
     optim_discrim = optim.AdamW(discrim.parameters(), lr=cfg.lr, weight_decay=cfg.wd)
 
-    lrscd_en = optim.lr_scheduler.CosineAnnealingWarmRestarts(optim_en, T_0=10, T_mult=2, eta_min=1e-8)
-    lrscd_de = optim.lr_scheduler.CosineAnnealingWarmRestarts(optim_de, T_0=10, T_mult=2, eta_min=1e-8)
-    lrscd_feac = optim.lr_scheduler.CosineAnnealingWarmRestarts(optim_feac, T_0=10, T_mult=2, eta_min=1e-8)
-    lrscd_mi = optim.lr_scheduler.CosineAnnealingWarmRestarts(optim_mi, T_0=10, T_mult=2, eta_min=1e-8)
-    lrscd_discrim = optim.lr_scheduler.CosineAnnealingWarmRestarts(optim_discrim, T_0=10, T_mult=2, eta_min=1e-8)
+
+    lrscd_en = optim.lr_scheduler.ExponentialLR(optim_en, gamma=0.1)
+    lrscd_de = optim.lr_scheduler.ExponentialLR(optim_de, gamma=0.1)
+    lrscd_feac = optim.lr_scheduler.ExponentialLR(optim_feac, gamma=0.1)
+    lrscd_mi = optim.lr_scheduler.ExponentialLR(optim_mi, gamma=0.1)
+    lrscd_discrim = optim.lr_scheduler.ExponentialLR(optim_discrim, gamma=0.1)
+
+    # lrscd_en = optim.lr_scheduler.CosineAnnealingWarmRestarts(optim_en, T_0=10, T_mult=2, eta_min=1e-8)
+    # lrscd_de = optim.lr_scheduler.CosineAnnealingWarmRestarts(optim_de, T_0=10, T_mult=2, eta_min=1e-8)
+    # lrscd_feac = optim.lr_scheduler.CosineAnnealingWarmRestarts(optim_feac, T_0=10, T_mult=2, eta_min=1e-8)
+    # lrscd_mi = optim.lr_scheduler.CosineAnnealingWarmRestarts(optim_mi, T_0=10, T_mult=2, eta_min=1e-8)
+    # lrscd_discrim = optim.lr_scheduler.CosineAnnealingWarmRestarts(optim_discrim, T_0=10, T_mult=2, eta_min=1e-8)
 
 
     models = {"encoder": {"net":encoder, "optim":optim_en, "lr_scd": lrscd_en},

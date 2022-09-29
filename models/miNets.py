@@ -45,6 +45,7 @@ class LocalMI(nn.Module):
 
         out = (features * representation).sum(dim=1) 
         return out.mean(dim=(1,2))
+        # (B,1)
 
 
 class TotalMI(nn.Module):
@@ -75,7 +76,7 @@ class TotalMI(nn.Module):
         lmi_scoremap = nn.Softmax(dim=1)(lmi_scoremap)
         gmi_scoremap = nn.Softmax(dim=1)(gmi_scoremap)
 
-        focus = Variable(torch.eye(B, dtype=torch.float32), requires_grad=False)# self._get_focus(labels)
+        focus = Variable(torch.eye(B, dtype=torch.float32), requires_grad=False) # self._get_focus(labels)
         zero_focus = Variable(1 - focus , requires_grad=False)
 
         lmi_score = (zero_focus * lmi_scoremap).sum() - (focus * lmi_scoremap).sum()
